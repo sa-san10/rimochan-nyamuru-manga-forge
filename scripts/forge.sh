@@ -29,8 +29,10 @@
 #
 # 仕組み（詳しくは docs/pitfalls.md）:
 #   page1 は `codex exec -i <refs>` で新規セッションを立ち上げ、
-#   page2 以降は `codex exec resume --last` で同じ会話を継続する。
+#   ログに出る `session id: <UUID>` を控える。
+#   page2 以降は `codex exec resume <そのUUID>` で**同じ会話を名指しで**継続する。
 #   同じ会話を使うことでキャラデザ・背景・画風がページ間で一貫する。
+#   `resume --last` は使わない（他の codex 呼び出しと並走すると別の会話を掴む。罠3）。
 # ============================================================
 set -uo pipefail
 
@@ -45,7 +47,7 @@ while [[ $# -gt 0 ]]; do
     -a|--omay)  OMAY="$2"; shift 2;;
     -r|--ref)   REFS+=("$2"); shift 2;;
     -m|--memo)  MEMO="$2"; shift 2;;
-    -h|--help)  sed -n '2,40p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help)  sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown option: $1" >&2; exit 1;;
   esac
 done
@@ -79,8 +81,13 @@ done
 
 OMAY_BODY="$(cat "$OMAY")"
 OMNY_BODY="$(cat "$OMNY")"
+[[ -n "$OMAY_BODY" && -n "$OMNY_BODY" ]] || { echo "ERROR: OMAY か OMNY が空なのだ" >&2; exit 1; }
+
+# 🚨 git 管理外のフォルダから呼んでも codex が黙って終わらないように（docs/pitfalls.md 罠11）
+CODEX_FLAGS=(--skip-git-repo-check)
 
 echo "=== forge start: $BASENAME / ${PAGES}ページ / refs=${#REF_ARGS[@]} ===" | tee -a "$LOG"
+echo "    OMAY: $(wc -c < "$OMAY") bytes / OMNY: $(wc -c < "$OMNY") bytes" | tee -a "$LOG"
 
 # ------------------------------------------------------------
 # 🚨 成果物強制ブロック（これが無いと宣言だけで終わる。docs/pitfalls.md 参照）
@@ -94,22 +101,35 @@ EOS
 }
 
 # ------------------------------------------------------------
+# 各ページで毎回伝えること（作画の要点・再生成の判断基準）
+#   後半の段落は nyamuru-manga-name-studio の
+#   「エージェント漫画生成ワークフロー」§5 の必須文に合わせている
+# ------------------------------------------------------------
+page_rules() {
+  cat <<EOS
+- **page${1} だけ**を1枚描く。1枚に複数ページをまとめない（見開き・サムネイル一覧は禁止）。A4縦1ページ
+- セリフは OMNY 記載どおりの日本語を一字一句変えずに、はっきり読みやすく描く。OMNYに無いセリフを足さない
+- フキダシの尻尾：通常の発話は先端を話者の口元へ向ける。caption・handwritten・\`offscreen: true\` のフキダシは尻尾なし
+- \`action\` は絵に反映し、ト書きの文字は紙面に描かない。コマ番号など OMNY の内部番号も描かない
+- ヘッダー：左上に作品タイトル、右上に「${1}/${PAGES}」。\`meta.author\` があれば下端中央に作者名
+- セリフとフキダシ込みの完成漫画を画像生成すること。フキダシの尻尾は、話者対応が正しければそれだけを理由に描き直さない。フキダシ内の文字化け・誤字・欠字・台詞抜けは後工程で人間が校正するので、それだけを理由に描き直さない。フキダシ外の文字（タイトル・ページ番号・効果音・看板・画面表示）の誤り、タイトル・ページ番号・作者名の描き漏れ、フキダシ位置の誤り・個数の不足、読み順や話者の誤り、内部番号の描き込みは描き直しの対象
+EOS
+}
+
+# ------------------------------------------------------------
 # page1: 新規セッション（OMAY全文 + OMNY全文 + リファレンスを渡す）
 # ------------------------------------------------------------
 echo "[$(date +%H:%M:%S)] ===== page1 =====" >> "$LOG"
-cat <<PROMPT | codex exec "${REF_ARGS[@]}" >> "$LOG" 2>&1
+cat <<PROMPT | codex exec "${CODEX_FLAGS[@]}" "${REF_ARGS[@]}" >> "$LOG" 2>&1
 $(forcing_block "page1")
 
 これから**全${PAGES}ページの漫画**を1ページずつ描いてほしい。
 **2つのファイル**を渡す。①OMAY（作画・演出ルールとレイアウト仕様）②OMNY（ネームデータ）。
 **OMAYのルールに従ってOMNYの内容を描く**こと。
+全${PAGES}ページを「1ページ=1枚の独立した画像」として描く。**まず page1 だけ描く**。page2 以降はこのあと1ページずつ依頼する。
 
-【進め方】
-- 全${PAGES}ページを「1ページ=1枚の独立した画像」として描く。1枚にまとめる/見開きは禁止
-- **まず page1 だけ描く**。そのあと続けて page2 以降を依頼する
-- セリフは OMNY 記載どおりの日本語で、はっきり読みやすく
-- **フキダシには尻尾を付けて、先端を話者の口元へ向ける**（caption・handwritten は尻尾なし）
-- ページヘッダーは左上に作品タイトル、右上に「1/${PAGES}」
+【page1 で守ること】
+$(page_rules 1)
 
 ${MEMO:+【この作品について】
 $MEMO
@@ -123,19 +143,33 @@ PROMPT
 echo "[$(date +%H:%M:%S)] page1 done" >> "$LOG"
 
 # ------------------------------------------------------------
-# page2..N: 同じ会話を resume して継続（キャラデザ・画風の一貫性のため）
+# page1 の会話を特定する（ログの `session id: <UUID>`）
+# ------------------------------------------------------------
+SESSION_ID=$(grep -oiE 'session id:[[:space:]]*[0-9a-f-]{36}' "$LOG" | head -1 | grep -oiE '[0-9a-f-]{36}' || true)
+if [[ -z "$SESSION_ID" ]]; then
+  echo "ERROR: page1 のログに session id が見つからないのだ。codex が起動できていない可能性があるのだ（$LOG を見てほしいのだ）" | tee -a "$LOG" >&2
+  exit 1
+fi
+echo "    session id: $SESSION_ID（page2 以降はこの会話を名指しで続けるのだ）" | tee -a "$LOG"
+
+# ------------------------------------------------------------
+# page2..N: 同じ会話を session id で resume して継続（キャラデザ・画風の一貫性のため）
 # ------------------------------------------------------------
 for ((p=2; p<=PAGES; p++)); do
   echo "[$(date +%H:%M:%S)] ===== page$p =====" >> "$LOG"
-  codex exec resume --last "$(forcing_block "page$p")
+  cat <<PROMPT | codex exec resume "${CODEX_FLAGS[@]}" "$SESSION_ID" - >> "$LOG" 2>&1
+$(forcing_block "page$p")
 
 つづき。さっき渡したOMAYのルールとOMNYのネームどおりに **page${p} を1枚だけ**描いてほしい。
 キャラクターデザイン・背景の内装・画風・小物のデザインは、**前のページと必ず一貫**させること。
-**フキダシの尻尾は話者の口元へ**向ける。ヘッダーは右上に「${p}/${PAGES}」。
+
+【page${p} で守ること】
+$(page_rules "$p")
 ${MEMO:+
-（作品メモ再掲）$MEMO}" >> "$LOG" 2>&1
+（作品メモ再掲）$MEMO}
+PROMPT
   echo "[$(date +%H:%M:%S)] page$p done" >> "$LOG"
 done
 
 echo "=== forge done. 回収するのだ ===" | tee -a "$LOG"
-"$HERE/scripts/collect.sh" --log "$LOG" --out "$OUT" --pages "$PAGES"
+"$HERE/scripts/collect.sh" --log "$LOG" --out "$OUT" --pages "$PAGES" --session "$SESSION_ID"

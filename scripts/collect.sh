@@ -6,22 +6,24 @@
 # ============================================================
 #
 # 使い方:
-#   ./scripts/collect.sh --log <forge.log> --out <出力先dir> [--pages N]
+#   ./scripts/collect.sh --log <forge.log> --out <出力先dir> [--pages N] [--session <UUID>]
 #
 # なぜ専用スクリプトが必要か:
 #   codex は生成画像を ~/.codex/generated_images/<UUID>/ に置く。
 #   「最新フォルダを取る」方式は複数の codex を並走させると混ざるので、
 #   **必ずログに出てきた自分のUUIDのフォルダから取る**のが鉄則なのだ。
+#   UUID は codex の session id と同じなので、forge.sh は --session でも渡す。
 #   （docs/pitfalls.md 参照）
 # ============================================================
 set -uo pipefail
 
-LOG=""; OUT=""; PAGES=""
+LOG=""; OUT=""; PAGES=""; SESSION=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --log)   LOG="$2"; shift 2;;
     --out)   OUT="$2"; shift 2;;
     --pages) PAGES="$2"; shift 2;;
+    --session) SESSION="$2"; shift 2;;
     -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown option: $1" >&2; exit 1;;
   esac
@@ -36,6 +38,8 @@ GEN_ROOT="${CODEX_IMAGE_DIR:-$HOME/.codex/generated_images}"
 # ログから「generated_images/<UUID>」を拾う（自分のセッションのものだけ）
 UUIDS=$(grep -oiE 'generated_images[/\\][0-9a-f-]{36}' "$LOG" \
         | grep -oiE '[0-9a-f-]{36}' | sort -u)
+# session id のフォルダも候補に足す（ログにパスが出なかった回の取りこぼし対策）
+[[ -n "$SESSION" ]] && UUIDS=$(printf '%s\n%s\n' "$UUIDS" "$SESSION" | grep -v '^$' | sort -u)
 
 if [[ -z "$UUIDS" ]]; then
   echo "⚠️ ログに生成画像のパスが出ていないのだ。" >&2
