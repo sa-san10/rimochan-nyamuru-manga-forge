@@ -119,7 +119,7 @@ record_takes() {
   [[ ${#new[@]} -gt 1 ]] && echo "    page$p: ${#new[@]} 枚描かれたのだ（自主リテイク）。最後の1枚を採用するのだ" | tee -a "$LOG"
 }
 
-echo "=== forge start: $BASENAME / ${PAGES}ページ / refs=${#REF_ARGS[@]} ===" | tee -a "$LOG"
+echo "=== forge start: $BASENAME / ${PAGES}ページ / refs=$(( ${#REF_ARGS[@]} / 2 )) ===" | tee -a "$LOG"
 echo "    OMAY: $(wc -c < "$OMAY") bytes / OMNY: $(wc -c < "$OMNY") bytes" | tee -a "$LOG"
 
 # ------------------------------------------------------------
