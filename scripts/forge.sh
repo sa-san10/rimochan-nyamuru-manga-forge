@@ -33,6 +33,8 @@
 #   page2 以降は `codex exec resume <そのUUID>` で**同じ会話を名指しで**継続する。
 #   同じ会話を使うことでキャラデザ・背景・画風がページ間で一貫する。
 #   `resume --last` は使わない（他の codex 呼び出しと並走すると別の会話を掴む。罠3）。
+#   各ページの依頼中に増えたPNGを takes.tsv に記録し、自主リテイクがあれば
+#   そのページの最後の1枚を採用する（罠5）。
 # ============================================================
 set -uo pipefail
 
@@ -47,7 +49,7 @@ while [[ $# -gt 0 ]]; do
     -a|--omay)  OMAY="$2"; shift 2;;
     -r|--ref)   REFS+=("$2"); shift 2;;
     -m|--memo)  MEMO="$2"; shift 2;;
-    -h|--help)  sed -n '2,36p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help)  sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown option: $1" >&2; exit 1;;
   esac
 done
@@ -85,6 +87,37 @@ OMNY_BODY="$(cat "$OMNY")"
 
 # 🚨 git 管理外のフォルダから呼んでも codex が黙って終わらないように（docs/pitfalls.md 罠11）
 CODEX_FLAGS=(--skip-git-repo-check)
+
+# ------------------------------------------------------------
+# 各ページの依頼中に増えたPNGを「ページ番号<TAB>パス」で takes.tsv に記録する（生成順）
+#   作画AIは頼まれなくても同じページを描き直すことがある（罠5）。
+#   どの画像がどのページの何回目かを、ページ番号の目視に頼らず残すため
+# ------------------------------------------------------------
+GEN_ROOT="${CODEX_IMAGE_DIR:-$HOME/.codex/generated_images}"
+TAKES="$OUT/takes.tsv"; : > "$TAKES"
+SESSION_ID=""
+
+record_takes() {
+  local p="$1" d f
+  local new=()
+  while IFS= read -r d; do
+    [[ -z "$d" || ! -d "$GEN_ROOT/$d" ]] && continue
+    for f in "$GEN_ROOT/$d"/*.png; do
+      [[ -f "$f" ]] || continue
+      cut -f2 "$TAKES" | grep -qxF "$f" && continue
+      new+=("$f")
+    done
+  done < <( { [[ -n "$SESSION_ID" ]] && echo "$SESSION_ID"
+              grep -oiE 'generated_images[/\\][0-9a-f-]{36}' "$LOG" | grep -oiE '[0-9a-f-]{36}'; } | sort -u )
+  if [[ ${#new[@]} -eq 0 ]]; then
+    echo "    ⚠️ page$p の画像が見つからないのだ（宣言だけで終わった？ 罠1）" | tee -a "$LOG" >&2
+    return
+  fi
+  while IFS= read -r f; do
+    printf '%s\t%s\n' "$p" "$f" >> "$TAKES"
+  done < <(ls -tr "${new[@]}")
+  [[ ${#new[@]} -gt 1 ]] && echo "    page$p: ${#new[@]} 枚描かれたのだ（自主リテイク）。最後の1枚を採用するのだ" | tee -a "$LOG"
+}
 
 echo "=== forge start: $BASENAME / ${PAGES}ページ / refs=${#REF_ARGS[@]} ===" | tee -a "$LOG"
 echo "    OMAY: $(wc -c < "$OMAY") bytes / OMNY: $(wc -c < "$OMNY") bytes" | tee -a "$LOG"
@@ -151,6 +184,7 @@ if [[ -z "$SESSION_ID" ]]; then
   exit 1
 fi
 echo "    session id: $SESSION_ID（page2 以降はこの会話を名指しで続けるのだ）" | tee -a "$LOG"
+record_takes 1
 
 # ------------------------------------------------------------
 # page2..N: 同じ会話を session id で resume して継続（キャラデザ・画風の一貫性のため）
@@ -169,7 +203,8 @@ ${MEMO:+
 （作品メモ再掲）$MEMO}
 PROMPT
   echo "[$(date +%H:%M:%S)] page$p done" >> "$LOG"
+  record_takes "$p"
 done
 
 echo "=== forge done. 回収するのだ ===" | tee -a "$LOG"
-"$HERE/scripts/collect.sh" --log "$LOG" --out "$OUT" --pages "$PAGES" --session "$SESSION_ID"
+"$HERE/scripts/collect.sh" --log "$LOG" --out "$OUT" --pages "$PAGES" --session "$SESSION_ID" --takes "$TAKES"

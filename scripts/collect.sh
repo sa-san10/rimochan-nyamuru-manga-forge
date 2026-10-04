@@ -6,7 +6,11 @@
 # ============================================================
 #
 # 使い方:
-#   ./scripts/collect.sh --log <forge.log> --out <出力先dir> [--pages N] [--session <UUID>]
+#   ./scripts/collect.sh --log <forge.log> --out <出力先dir> [--pages N] [--session <UUID>] [--takes <takes.tsv>]
+#
+#   --takes（forge.sh が渡す）があれば、ページごとに最後に描かれた1枚を pageN.png に採用し、
+#   自主リテイクで先に描かれた分は rejected/pageN-takeK.png に分ける（罠5）。
+#   無ければ従来どおり生成順に page1, page2 ... と並べる（手動回収用）。
 #
 # なぜ専用スクリプトが必要か:
 #   codex は生成画像を ~/.codex/generated_images/<UUID>/ に置く。
@@ -17,14 +21,15 @@
 # ============================================================
 set -uo pipefail
 
-LOG=""; OUT=""; PAGES=""; SESSION=""
+LOG=""; OUT=""; PAGES=""; SESSION=""; TAKES=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --log)   LOG="$2"; shift 2;;
     --out)   OUT="$2"; shift 2;;
     --pages) PAGES="$2"; shift 2;;
     --session) SESSION="$2"; shift 2;;
-    -h|--help) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    --takes) TAKES="$2"; shift 2;;
+    -h|--help) sed -n '2,21p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
     *) echo "unknown option: $1" >&2; exit 1;;
   esac
 done
@@ -34,6 +39,46 @@ done
 mkdir -p "$OUT"
 
 GEN_ROOT="${CODEX_IMAGE_DIR:-$HOME/.codex/generated_images}"
+
+# ------------------------------------------------------------
+# takes.tsv がある場合：ページごとに最後の1枚を採用し、それ以前は rejected/ へ
+# ------------------------------------------------------------
+if [[ -n "$TAKES" && -s "$TAKES" ]]; then
+  [[ -z "$PAGES" ]] && PAGES=$(cut -f1 "$TAKES" | sort -n | tail -1)
+  MISSING=(); RETAKEN=()
+  for ((p=1; p<=PAGES; p++)); do
+    PF=()   # macOS の bash 3.2 でも動くよう mapfile は使わない
+    while IFS= read -r f; do PF+=("$f"); done < <(awk -F'\t' -v p="$p" '$1==p {print $2}' "$TAKES")
+    n=${#PF[@]}
+    if [[ $n -eq 0 ]]; then MISSING+=("$p"); continue; fi
+    cp "${PF[$((n-1))]}" "$OUT/page$p.png"
+    if [[ $n -gt 1 ]]; then
+      RETAKEN+=("$p")
+      mkdir -p "$OUT/rejected"
+      for ((k=0; k<n-1; k++)); do
+        cp "${PF[$k]}" "$OUT/rejected/page$p-take$((k+1)).png"
+      done
+    fi
+  done
+
+  echo "✅ 回収したのだ: $((PAGES - ${#MISSING[@]}))/$PAGES ページ → $OUT"
+  ls -la "$OUT"/page*.png 2>/dev/null | awk '{print "   " $9, $5"B"}'
+  if [[ ${#RETAKEN[@]} -gt 0 ]]; then
+    echo "   ↪ 自主リテイクがあったページ: ${RETAKEN[*]}（最後の1枚を採用。先に描かれた分は rejected/ にあるのだ）"
+  fi
+  if [[ ${#MISSING[@]} -gt 0 ]]; then
+    cat >&2 <<EOS
+
+⚠️ 画像が無いページがあるのだ: ${MISSING[*]}
+   → そのページだけ宣言で終わった可能性（罠1）。forge.log を見てほしいのだ
+EOS
+    exit 2
+  fi
+  cat <<EOS
+   👉 念のため、各PNG右上のページ番号（例「3/10」）が合っているか検品で確かめてほしいのだ（罠5）
+EOS
+  exit 0
+fi
 
 # ログから「generated_images/<UUID>」を拾う（自分のセッションのものだけ）
 UUIDS=$(grep -oiE 'generated_images[/\\][0-9a-f-]{36}' "$LOG" \
