@@ -198,7 +198,7 @@ Studio 側で仕様が更新されたら、次の手順でこちらへ取り込�
 1. Studio の `src/content/` の差分を見る（OMAY の `spec_version` / OMNY の `schema_version` が上がっていたら要注意）
 2. `standard.omay.yaml` を `omay/standard.omay.yaml` へ上書きコピー
 3. 生成プロンプトの差分を `prompts/ndm-v10.md` へ反映する（§D の出力方法など **forge 固有の追記を消さないよう、丸ごと上書きではなく差分マージ**で）
-4. `spec_version` と `schema_version` の一致を確認する（bg やマージン等の数値はプロンプトと OMAY の両方に意図的に二重掲載されているので、**必ず両方揃えて**直す）
+4. bg やマージン等の数値はプロンプトと OMAY の両方に意図的に二重掲載されているので、**必ず両方揃えて**直す（OMAY の `spec_version` と NDM の `schema_version` は別々に上がるので、版番号どうしを一致させる必要はない）
 5. サンプルを焼き直して検品する: `./scripts/forge.sh -n examples/sample-2page.omny.yaml`
 
 両リポジトリとも同じ作者（sa-san10）の MIT ライセンスなので、仕様ファイルの相互コピーに特別な手続きは要りません

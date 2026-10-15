@@ -177,6 +177,16 @@ cat page2_prompt.txt | codex exec resume --skip-git-repo-check "$SESSION_ID" -
 
 ---
 
+## 【罠12】ログの `ERROR: Reconnecting...` は失敗とはかぎらない
+
+**症状**：`forge.log` に `ERROR: Reconnecting... 2/5` 〜 `5/5` が何度も並ぶ。失敗したように見える。
+
+**原因**：codex が通信を張り直すときの途中経過の表示。再接続に成功すればそのまま作画を続ける。実例：8ページの作品で page4〜8 の毎回この行が出たが、8ページとも描き直しなしで焼き上がった。
+
+**対策**：`ERROR` の文字だけで止めたり、描き直しを頼んだりしない。成否は【罠11】と同じく、ログに `session id` と `generated_images/<UUID>/...png` が出ているか、`takes.tsv` にそのページの行があるかで判断する。
+
+---
+
 ## 検品チェックリスト
 
 焼き上がったら、全ページを実際に**目で見て**ください。
