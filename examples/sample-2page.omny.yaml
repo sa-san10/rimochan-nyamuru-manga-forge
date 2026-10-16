@@ -1,6 +1,6 @@
 # ============================================================
 # 『サンプル：いいもの見たのだ』
-# Open Manga Name YAML (OMNY) / Nyamuru Data Model (NDM) v10.3
+# Open Manga Name YAML (OMNY) / Nyamuru Data Model (NDM) v10.31
 # ------------------------------------------------------------
 #   タイトル    : サンプル：いいもの見たのだ
 #   作者名      : your-name（meta.author を書き換えて使ってください）
@@ -8,13 +8,13 @@
 #   画風        : 標準（カラー漫画）
 #   ページ数    : 2
 # ------------------------------------------------------------
-# 🧍v10.3 人物センター原則を全コマで適用
+# 🧍人物センター原則を全コマで適用
 # 📐 ページ間でコマ割りパターンを変えている（p1=3段 / p2=メクリ受けドン）
 # ============================================================
 
 manga:
   schema_name: "Nyamuru Data Model"
-  schema_version: 10.2
+  schema_version: 10.31
   meta:
     title: "サンプル：いいもの見たのだ"
     author: "your-name"
@@ -39,6 +39,7 @@ manga:
       - "レジ袋"
       - "カップアイス"
       - "水たまり"
+    situation: "学校帰り、雨上がりのコンビニ前。ふつうの一日の終わりに、ちいさなご褒美が待っている"
 
   characters:
     - name: "ミオ"
@@ -64,6 +65,7 @@ manga:
 
   pages:
     - page: 1
+      canvas: {w: 210, h: 297, unit: mm}
       panels:
         - id: 1
           shape: {type: "rect", x: 10, y: 10, w: 190, h: 92}
@@ -125,6 +127,7 @@ manga:
               bbox: {x: 16, y: 200, w: 42, h: 36}
 
     - page: 2
+      canvas: {w: 210, h: 297, unit: mm}
       panels:
         - id: 1
           shape: {type: "rect", x: 10, y: 10, w: 190, h: 182}
