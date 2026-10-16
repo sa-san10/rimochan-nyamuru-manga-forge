@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 sa-san10
-# Open Manga Artwork YAML (OMAY) v10.5 — 画像生成指示ファイル
+# Open Manga Artwork YAML (OMAY) v10.6 — 画像生成指示ファイル
 # Nickname: Nyamuru🐱
 #
 # OMNY（Open Manga Name YAML）形式の漫画ネームを漫画として描くための
@@ -22,7 +22,7 @@
 #   [const] ＞ omny.yamlのlayout_spec,style_notes ＞ [must] ＞ [panel] ＞ [style] ＞ [default]
 
 spec_name: "Open Manga Artwork YAML"
-spec_version: "10.5"
+spec_version: "10.6"
 
 style_notes:
   # ### セリフの文字

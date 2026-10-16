@@ -196,7 +196,7 @@ Studio のワークフローを実運用（毎日焼く）に耐えるように�
 Studio 側で仕様が更新されたら、次の手順でこちらへ取り込みます：
 
 1. Studio の `src/content/` の差分を見る（OMAY の `spec_version` / OMNY の `schema_version` が上がっていたら要注意）
-2. `standard.omay.yaml` を `omay/standard.omay.yaml` へ上書きコピー（⚠️ bg:1 の要素の決まり＝`docs/pitfalls.md` 罠12 の対策は forge 側で先に足したもの。Studio 側に入っていなければ、上書き後に足し直す）
+2. `standard.omay.yaml` を `omay/standard.omay.yaml` へ上書きコピー
 3. 生成プロンプトの差分を `prompts/ndm-v10.md` へ反映する（§D の出力方法など **forge 固有の追記を消さないよう、丸ごと上書きではなく差分マージ**で）
 4. `spec_version` と `schema_version` の一致を確認する（bg やマージン等の数値はプロンプトと OMAY の両方に意図的に二重掲載されているので、**必ず両方揃えて**直す）
 5. サンプルを焼き直して検品する: `./scripts/forge.sh -n examples/sample-2page.omny.yaml`
