@@ -71,13 +71,20 @@ cd rimochan-nyamuru-manga-forge
 ```bash
 ./scripts/forge.sh -n my.omny.yaml \
   -r chars/hero.png -r chars/rival.png \
-  -m "画風はクレヨン画。主人公は必ず赤いマフラーを付けている"
+  -m "主人公は必ず赤いマフラーを付けている"
 ```
 
 できた原稿は好きな場所へ納品できます（ネームも一緒に残すと資産になります）:
 
 ```bash
-./scripts/deliver.sh -f out/my -t ~/Desktop/my -n my.omny.yaml
+./scripts/deliver.sh -f out/my -t ~/Desktop/my -n out/my/my.used.omny.yaml
+```
+
+同じネームを別の画風で刷り直すときは `-s` を付けます（画風は [`styles/`](styles/) に1つずつファイルで入っていて、足すこともできます）:
+
+```bash
+./scripts/styles.sh                                    # 画風の一覧
+./scripts/forge.sh -n my.omny.yaml -s crayon -o out/my_crayon
 ```
 
 ---
@@ -110,11 +117,12 @@ Claude Code が
 ```
 SKILL.md                    Claude Code スキル本体（これが読まれます）
 omay/standard.omay.yaml     作画・演出ルールとレイアウト仕様（OMAY）
-omay/styles.md              画風パレット（12種の呪文）
+styles/                     画風ファイル（1画風＝1ファイル。forge.sh -s で使う）
 prompts/ndm-v10.md          ネーム生成プロンプト（OMNYの書き方の全仕様）
 scripts/forge.sh            OMNY → 原稿PNG を焼くドライバ
 scripts/collect.sh          生成画像をページ順に回収
 scripts/deliver.sh          検品済みの原稿を希望の場所へ納品
+scripts/styles.sh           画風の一覧・中身の表示・書式の確認
 examples/                   サンプルネーム
 docs/setup.md               codex CLI の準備
 docs/characters.md          自分のキャラ・背景を登録する
@@ -186,7 +194,7 @@ Studio のワークフローを実運用（毎日焼く）に耐えるように�
 - **page1=新規セッション／page2以降=page1 の session id を名指しした resume** によるページ間一貫性の担保（罠3・4。`--last` を使わないので他の codex 呼び出しと並走しても混ざらない）
 - `--skip-git-repo-check` で git の外のフォルダからでも動く（罠11）
 - **ログのUUIDからの画像回収**（`collect.sh`。罠7）
-- ハマりどころ全集（`docs/pitfalls.md`）と画風パレット（`omay/styles.md`）
+- ハマりどころ全集（`docs/pitfalls.md`）と画風ファイル（`styles/`。`forge.sh -s` で使う）
 
 なお検品の考え方が少し違います：Studio のワークフローはフキダシ内テキストの校正を人間の後工程に委ねますが、
 このスキルでは**エージェントが全ページを目で見て検品**し、気になるページだけ再生成する運用です。

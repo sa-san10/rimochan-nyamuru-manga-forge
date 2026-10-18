@@ -16,12 +16,20 @@
 #   -o, --out <dir>        出力先ディレクトリ（既定: ./out/<OMNY名>）
 #   -a, --omay <path>      OMAYファイル（既定: omay/standard.omay.yaml）
 #   -r, --ref <path>       リファレンス画像。複数回指定可（最大3枚推奨）
-#   -m, --memo <text>      作品固有の追加指示（画風・気をつけてほしいこと等）
+#   -m, --memo <text>      作品固有の追加指示（気をつけてほしいこと等）
+#   -s, --style <画風>     画風ファイル（styles/*.yaml）の名前・ファイル名・パス。
+#                          その画風の行を OMNY の meta.style_notes の先頭に入れて焼く
+#                          （OMNYのファイル自体は書き換えない。一覧は scripts/styles.sh）
 #   -h, --help             このヘルプ
 #
 # 例:
 #   ./scripts/forge.sh -n my.omny.yaml -r chars/hero.png -r chars/rival.png \
-#       -m "画風はクレヨン画。1コマ目の背景は夕焼けにしてほしい"
+#       -m "1コマ目の背景は夕焼けにしてほしい"
+#   ./scripts/forge.sh -n my.omny.yaml -s crayon -o out/my_crayon   # 同じネームをクレヨン画で刷り直す
+#
+# 出力:
+#   <出力先>/pageN.png、forge.log、takes.tsv、
+#   <OMNY名>.used.omny.yaml（実際に作画AIへ渡したネーム。-s の画風の行も入っている。納品にはこれを使う）
 #
 # 前提:
 #   - codex CLI がインストール済み & ログイン済み（画像生成が使えるプラン）
@@ -38,7 +46,7 @@
 # ============================================================
 set -uo pipefail
 
-OMNY=""; PAGES=""; OUT=""; OMAY=""; MEMO=""
+OMNY=""; PAGES=""; OUT=""; OMAY=""; MEMO=""; STYLE=""
 REFS=()
 
 while [[ $# -gt 0 ]]; do
@@ -49,7 +57,8 @@ while [[ $# -gt 0 ]]; do
     -a|--omay)  OMAY="$2"; shift 2;;
     -r|--ref)   REFS+=("$2"); shift 2;;
     -m|--memo)  MEMO="$2"; shift 2;;
-    -h|--help)  sed -n '2,38p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -s|--style) STYLE="$2"; shift 2;;
+    -h|--help)  awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0"; exit 0;;
     *) echo "unknown option: $1" >&2; exit 1;;
   esac
 done
@@ -84,6 +93,26 @@ done
 OMAY_BODY="$(cat "$OMAY")"
 OMNY_BODY="$(cat "$OMNY")"
 [[ -n "$OMAY_BODY" && -n "$OMNY_BODY" ]] || { echo "ERROR: OMAY か OMNY が空なのだ" >&2; exit 1; }
+
+# ------------------------------------------------------------
+# 画風（-s）：画風ファイルの行を meta.style_notes の先頭に入れる。memo は -m に足す
+# ------------------------------------------------------------
+STYLE_INFO="（OMNYのまま）"
+if [[ -n "$STYLE" ]]; then
+  source "$HERE/scripts/lib_style.sh"
+  STYLE_FILE="$(style_find "$STYLE")" || { echo "ERROR: 画風が見つからないのだ: $STYLE（一覧は scripts/styles.sh）" >&2; exit 1; }
+  STYLE_ERR="$(style_check "$STYLE_FILE")"
+  [[ -z "$STYLE_ERR" ]] || { echo "ERROR: 画風ファイルの書き方がおかしいのだ: $STYLE_FILE" >&2; echo "$STYLE_ERR" >&2; exit 1; }
+  OMNY_BODY="$(style_apply "$OMNY" "$(style_get "$STYLE_FILE" line)")"     || { echo "ERROR: OMNY に meta.style_notes が見つからないのだ（style_notes: [] でもいいので書いてほしいのだ）" >&2; exit 1; }
+  STYLE_MEMO="$(style_get "$STYLE_FILE" memo)"
+  [[ -n "$STYLE_MEMO" ]] && MEMO="${MEMO:+$MEMO
+}$STYLE_MEMO"
+  STYLE_INFO="$(style_get "$STYLE_FILE" name)（$STYLE_FILE）"
+fi
+# 実際に作画AIへ渡すネームを残す（納品・刷り直しに使う）
+USED_OMNY="$OUT/$BASENAME.used.omny.yaml"
+printf '%s
+' "$OMNY_BODY" > "$USED_OMNY"
 
 # 🚨 git 管理外のフォルダから呼んでも codex が黙って終わらないように（docs/pitfalls.md 罠11）
 CODEX_FLAGS=(--skip-git-repo-check)
@@ -120,7 +149,7 @@ record_takes() {
 }
 
 echo "=== forge start: $BASENAME / ${PAGES}ページ / refs=$(( ${#REF_ARGS[@]} / 2 )) ===" | tee -a "$LOG"
-echo "    OMAY: $(wc -c < "$OMAY") bytes / OMNY: $(wc -c < "$OMNY") bytes" | tee -a "$LOG"
+echo "    OMAY: $(wc -c < "$OMAY") bytes / OMNY: $(wc -c < "$USED_OMNY") bytes / 画風: $STYLE_INFO" | tee -a "$LOG"
 
 # ------------------------------------------------------------
 # 🚨 成果物強制ブロック（これが無いと宣言だけで終わる。docs/pitfalls.md 参照）
