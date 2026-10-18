@@ -40,6 +40,18 @@ style_find() {
   while IFS= read -r f; do
     [[ "$(style_get "$f" name)" == "$q" ]] && { echo "$f"; return 0; }
   done < <(style_files)
+  # 名前の一部（例「セル画」→「90年代セル画」）。候補が1つのときだけ使う
+  local hits=() seen=" " b
+  while IFS= read -r f; do
+    b="$(basename "$f")"
+    [[ "$seen" == *" $b "* ]] && continue
+    [[ "$(style_get "$f" name)" == *"$q"* ]] && { hits+=("$f"); seen+="$b "; }
+  done < <(style_files)
+  [[ ${#hits[@]} -eq 1 ]] && { echo "${hits[0]}"; return 0; }
+  if [[ ${#hits[@]} -gt 1 ]]; then
+    echo "「$q」に当てはまる画風が複数あるのだ:" >&2
+    for f in "${hits[@]}"; do echo "  $(basename "$f" .yaml)  $(style_get "$f" name)" >&2; done
+  fi
   return 1
 }
 

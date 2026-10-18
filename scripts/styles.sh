@@ -19,6 +19,7 @@ source "$HERE/scripts/lib_style.sh"
 
 case "${1:-list}" in
   list)
+    echo "# 左：-s に渡す名前／右：表示名（試し焼きの結果。◎ 顔まで変わる・○ 塗り・線・質感が変わる・△ 少し変わる）"
     while IFS= read -r f; do
       t="$(style_get "$f" tested)"
       printf '%-16s %s%s\n' "$(basename "$f" .yaml)" "$(style_get "$f" name)" "${t:+（$t）}"
