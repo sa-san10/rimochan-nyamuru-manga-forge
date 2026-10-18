@@ -13,12 +13,13 @@
 #   -t, --to <dir>         納品先ディレクトリ（無ければ作る）
 #
 # オプション:
-#   -n, --omny <path>      ネーム（OMNY）も一緒に納品して資産として残す
+#   -n, --omny <path>      ネーム（OMNY）も一緒に納品して資産として残す。
+#                          forge.sh が出力先に残す <OMNY名>.used.omny.yaml（実際に渡したネーム）を渡す
 #   --force                納品先に同名の page*.png があっても上書きする
 #   -h, --help             このヘルプ
 #
 # 例:
-#   ./scripts/deliver.sh -f out/my -t ~/Desktop/my -n my.omny.yaml
+#   ./scripts/deliver.sh -f out/my -t ~/Desktop/my -n out/my/my.used.omny.yaml
 #
 # ⚠️ 納品は検品（SKILL.md ⑤）が終わってから。
 #    納品先に前回の納品物があると止まる（黙って上書きしない）。
@@ -32,7 +33,7 @@ while [[ $# -gt 0 ]]; do
     -t|--to)   TO="$2"; shift 2;;
     -n|--omny) OMNY="$2"; shift 2;;
     --force)   FORCE=1; shift;;
-    -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0;;
+    -h|--help) awk 'NR > 1 && !/^#/ { exit } NR > 1 { sub(/^# ?/, ""); print }' "$0"; exit 0;;
     *) echo "unknown option: $1" >&2; exit 1;;
   esac
 done
